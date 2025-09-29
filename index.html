@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travel Survival Guide</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="title">🌍 Travel Survival Guide</h1>
+            <p class="subtitle">Essential travel information for high-confusion destinations</p>
+        </header>
+
+        <div class="search-section">
+            <div class="search-container">
+                <input type="text" id="searchInput" placeholder="Search destination (e.g., 'I'm going to Seoul', 'China', 'Tokyo')" class="search-input">
+                <button id="searchBtn" class="search-btn">Search</button>
+            </div>
+            <div class="search-suggestions" id="searchSuggestions"></div>
+        </div>
+
+        <div class="results-section" id="resultsSection" style="display: none;">
+            <div class="destination-header">
+                <h2 id="destinationTitle"></h2>
+                <div class="destination-flag" id="destinationFlag"></div>
+            </div>
+            
+            <div class="survival-packet" id="survivalPacket">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+        </div>
+
+        <div class="no-results" id="noResults" style="display: none;">
+            <div class="no-results-content">
+                <h3>No results found</h3>
+                <p>Try searching for: France, Thailand, Australia, India, Brazil, or any of our 150+ destinations</p>
+            </div>
+        </div>
+
+        <footer class="footer">
+            <p>Data sourced from government sites, Reddit communities, and travel blogs</p>
+            <p>API available at <code>/api/destination/{country}</code></p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
