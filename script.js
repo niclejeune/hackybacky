@@ -4,20 +4,19 @@ let travelData = {};
 // Load travel data from API
 async function loadTravelData() {
     try {
+        console.log('Loading travel data...');
         const response = await fetch('/api/destinations');
-        const result = await response.json();
+        const destinations = await response.json();
+        console.log('Destinations response:', destinations);
         
-        if (result.success) {
-            // Load each country's data
-            for (const dest of result.data) {
-                const countryResponse = await fetch(`/api/destination/${dest.key}`);
-                const countryResult = await countryResponse.json();
-                if (countryResult.success) {
-                    travelData[dest.key] = countryResult.data;
-                }
-            }
-            console.log(`Loaded ${Object.keys(travelData).length} countries`);
+        // Load each country's data
+        for (const dest of destinations) {
+            const countryResponse = await fetch(`/api/destination/${dest.key}`);
+            const countryData = await countryResponse.json();
+            travelData[dest.key] = countryData;
         }
+        console.log(`Loaded ${Object.keys(travelData).length} countries`);
+        console.log('Available countries:', Object.keys(travelData));
     } catch (error) {
         console.error('Error loading travel data:', error);
     }
@@ -42,9 +41,12 @@ function normalizeSearchTerm(term) {
 
 function findDestination(searchTerm) {
     const normalized = normalizeSearchTerm(searchTerm);
+    console.log('Searching for:', normalized);
+    console.log('Available data keys:', Object.keys(travelData));
     
     // Direct country name match
     if (travelData[normalized]) {
+        console.log('Direct match found:', normalized);
         return normalized;
     }
     
@@ -55,10 +57,12 @@ function findDestination(searchTerm) {
             normalized.includes(term.toLowerCase()) || 
             term.toLowerCase().includes(normalized)
         )) {
+            console.log('Metadata match found:', key);
             return key;
         }
     }
     
+    console.log('No match found for:', normalized);
     return null;
 }
 
