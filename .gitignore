@@ -2,15 +2,6 @@
 node_modules/
 npm-debug.log*
 
-# Python
-venv/
-__pycache__/
-*.pyc
-requirements.txt
-
-# Data files (not needed in repo for database solution)
-data/
-
 # Environment variables
 .env
 .env.local
@@ -22,3 +13,11 @@ data/
 # OS generated files
 .DS_Store
 Thumbs.db
+.vscode/
+.idea/
+
+# Package managers
+package-lock.json
+yarn.lock
+
+data/
