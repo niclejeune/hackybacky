@@ -1,143 +1,127 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
-const fs = require('fs');
+const { Pool } = require('pg');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Initialize PostgreSQL connection
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static('.'));
 
-// Load travel data from JSON files
-const loadTravelData = () => {
-    const data = {};
-    
+// Test database connection on startup
+const testDatabaseConnection = async () => {
     try {
-        const dataDir = path.join(__dirname, 'data');
-        
-        if (!fs.existsSync(dataDir)) {
-            console.log('📁 data/ directory not found');
-            return {};
-        }
-        
-        // Read all JSON files from data directory
-        const files = fs.readdirSync(dataDir).filter(file => file.endsWith('.json') && file !== 'package.json');
-        
-        files.forEach(file => {
-            try {
-                const filePath = path.join(dataDir, file);
-                const fileData = fs.readFileSync(filePath, 'utf8');
-                const destination = JSON.parse(fileData);
-                
-                // Create key from destination name
-                const key = destination.destination.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '');
-                data[key] = destination;
-            } catch (error) {
-                console.error(`Error loading ${file}:`, error.message);
-            }
-        });
-        
-        console.log(`📊 Loaded ${Object.keys(data).length} destinations from JSON files`);
+        const { rows } = await pool.query('SELECT COUNT(*) as count FROM destinations');
+        console.log(`📊 Connected to database with ${rows[0].count} destinations`);
+        return true;
     } catch (error) {
-        console.error('Error loading travel data:', error.message);
+        console.error('❌ Database connection failed:', error.message);
+        return false;
     }
-    
-    return data;
 };
 
-// Load data on startup
-const travelData = loadTravelData();
-
 // Health check endpoint
-app.get('/api/health', (req, res) => {
-    res.json({
-        status: 'healthy',
-        destinations: Object.keys(travelData).length,
-        timestamp: new Date().toISOString(),
-        message: 'Travel Survival Guide API - JSON File Based'
-    });
+app.get('/api/health', async (req, res) => {
+    try {
+        const { rows } = await pool.query('SELECT COUNT(*) as count FROM destinations');
+        res.json({
+            status: 'healthy',
+            destinations: parseInt(rows[0].count),
+            timestamp: new Date().toISOString(),
+            message: 'Travel Survival Guide API - PostgreSQL Based'
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: 'error',
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
 });
 
 // Get all destinations
-app.get('/api/destinations', (req, res) => {
-    const destinations = Object.keys(travelData).map(key => ({
-        key,
-        name: travelData[key].destination,
-        region_type: travelData[key].region_type,
-        emoji_flag: travelData[key].emoji_flag,
-        highlights: travelData[key].metadata?.highlights || [],
-        keywords: travelData[key].metadata?.keywords || []
-    }));
-    
-    res.json(destinations);
+app.get('/api/destinations', async (req, res) => {
+    try {
+        const { rows } = await pool.query(`
+            SELECT key, name, region_type, emoji_flag, 
+                   payload->'metadata'->'highlights' as highlights,
+                   payload->'metadata'->'keywords' as keywords
+            FROM destinations 
+            ORDER BY name ASC
+        `);
+        
+        const destinations = rows.map(row => ({
+            key: row.key,
+            name: row.name,
+            region_type: row.region_type,
+            emoji_flag: row.emoji_flag,
+            highlights: row.highlights || [],
+            keywords: row.keywords || []
+        }));
+        
+        res.json(destinations);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Get specific destination
-app.get('/api/destination/:key', (req, res) => {
-    const { key } = req.params;
-    const destination = travelData[key.toLowerCase()];
-    
-    if (!destination) {
-        return res.status(404).json({ error: 'Destination not found' });
+app.get('/api/destination/:key', async (req, res) => {
+    try {
+        const { key } = req.params;
+        const { rows } = await pool.query(
+            'SELECT payload FROM destinations WHERE key = $1',
+            [key.toLowerCase()]
+        );
+        
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'Destination not found' });
+        }
+        
+        res.json(rows[0].payload);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
-    
-    res.json(destination);
 });
 
 // Search destinations
-app.get('/api/search', (req, res) => {
-    const { q } = req.query;
-    if (!q) {
-        return res.status(400).json({ error: 'Query parameter required' });
+app.get('/api/search', async (req, res) => {
+    try {
+        const { q } = req.query;
+        if (!q) {
+            return res.status(400).json({ error: 'Query parameter required' });
+        }
+        
+        const query = q.toLowerCase();
+        const { rows } = await pool.query(`
+            SELECT key, name, region_type, emoji_flag,
+                   similarity(name, $1) as score
+            FROM destinations
+            WHERE name ILIKE '%' || $1 || '%'
+               OR payload->'metadata'->'keywords'::text ILIKE '%' || $1 || '%'
+               OR payload->'metadata'->'highlights'::text ILIKE '%' || $1 || '%'
+            ORDER BY score DESC NULLS LAST, name ASC
+            LIMIT 10
+        `, [query]);
+        
+        const results = rows.map(row => ({
+            key: row.key,
+            destination: row.name,
+            region_type: row.region_type,
+            emoji_flag: row.emoji_flag,
+            score: row.score || 0
+        }));
+        
+        res.json(results);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
-    
-    const query = q.toLowerCase();
-    const results = [];
-    
-    Object.keys(travelData).forEach(key => {
-        const destination = travelData[key];
-        
-        // Search in destination name
-        if (destination.destination.toLowerCase().includes(query)) {
-            results.push({ key, destination, score: 100 });
-            return;
-        }
-        
-        // Search in keywords
-        if (destination.metadata?.keywords) {
-            const keywordMatch = destination.metadata.keywords.some(keyword => 
-                keyword.toLowerCase().includes(query)
-            );
-            if (keywordMatch) {
-                results.push({ key, destination, score: 80 });
-                return;
-            }
-        }
-        
-        // Search in highlights
-        if (destination.metadata?.highlights) {
-            const highlightMatch = destination.metadata.highlights.some(highlight => 
-                highlight.toLowerCase().includes(query)
-            );
-            if (highlightMatch) {
-                results.push({ key, destination, score: 60 });
-                return;
-            }
-        }
-        
-        // Search in other fields
-        const searchText = JSON.stringify(destination).toLowerCase();
-        if (searchText.includes(query)) {
-            results.push({ key, destination, score: 40 });
-        }
-    });
-    
-    // Sort by score and return
-    results.sort((a, b) => b.score - a.score);
-    res.json(results.map(r => ({ key: r.key, destination: r.destination })));
 });
 
 // Serve the web interface
@@ -146,15 +130,14 @@ app.get('/', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`🚀 Travel Survival Guide API running on http://localhost:${PORT}`);
-    console.log(`📊 Loaded ${Object.keys(travelData).length} destinations`);
     console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
     console.log(`🌐 Web interface: http://localhost:${PORT}`);
     
-    // Show some example destinations
-    const exampleKeys = Object.keys(travelData).slice(0, 5);
-    if (exampleKeys.length > 0) {
-        console.log(`🌍 Example destinations: ${exampleKeys.join(', ')}`);
+    // Test database connection
+    const dbConnected = await testDatabaseConnection();
+    if (!dbConnected) {
+        console.log('⚠️  Server started but database connection failed');
     }
 });
