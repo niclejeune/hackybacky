@@ -99,11 +99,20 @@ GET /api/destination/{key}
 ```
 Returns complete travel information for a destination.
 
-**Example:**
+**Key Generation Rules:**
+- Spaces become hyphens: `"Dominican Republic"` → `"dominican-republic"`
+- Special characters are removed: `"Trinidad & Tobago"` → `"trinidad--tobago"`
+- All keys are lowercase
+- Double hyphens are preserved (e.g., `"trinidad--tobago"`)
+
+**Examples:**
 ```bash
 curl http://localhost:3000/api/destination/france
 curl http://localhost:3000/api/destination/japan
 curl http://localhost:3000/api/destination/united-kingdom
+curl http://localhost:3000/api/destination/dominican-republic
+curl http://localhost:3000/api/destination/trinidad--tobago
+curl http://localhost:3000/api/destination/saudi-arabia
 ```
 
 ### Search Destinations
@@ -255,6 +264,34 @@ MIT License - feel free to use this data and API for your projects.
 - **Verify JSON syntax** in data files
 - **Ensure Node.js** version 18+ is installed
 - **Check console logs** for error messages
+
+### 🔧 Troubleshooting
+
+#### Key Generation Issues
+If a destination isn't found, check the key generation:
+
+```bash
+# Test key generation for any destination name
+node -e "
+const dest = 'Trinidad & Tobago';
+const key = dest.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '');
+console.log('Destination:', dest);
+console.log('Generated key:', key);
+"
+```
+
+**Common Key Patterns:**
+- `"United States of America"` → `"united-states-of-america"`
+- `"South Korea"` → `"south-korea"`
+- `"Hong Kong"` → `"hong-kong"`
+- `"Czech Republic"` → `"czech-republic"`
+- `"Trinidad & Tobago"` → `"trinidad--tobago"` (note: double hyphens)
+
+#### Data Structure Issues
+Ensure JSON files follow the exact structure shown in the Data Structure section. Common issues:
+- Missing required fields (e.g., `transport.passes`, `culture.tipping`)
+- Incorrect field names (e.g., `food.local_dishes` instead of `food_drink.must_try`)
+- Missing `best_time` or `safety_scams` fields
 
 ---
 
