@@ -12,7 +12,9 @@ npm install
 
 # 2. Start PostgreSQL with Docker
 docker run --name hackybacky-db -p 5432:5432 \
-  -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=hackybacky \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_DB=hackybacky \
   -d postgres:16
 
 # 3. Create .env file
@@ -49,6 +51,15 @@ npm start
 
 Your API will be running at **http://localhost:3000**
 
+## ⚠️ Important Note About Data
+
+**The `data/` directory is not included in this repository.** You must create your own destination JSON files. The original data has been removed for privacy reasons.
+
+**To get started:**
+1. **Create your own JSON files** in the `data/` directory following the format in `scripts/add-destination.js`
+2. **Use the import script** to add destinations: `npm run db:import`
+3. **Or use the add-destination script** to add individual destinations: `npm run db:add`
+
 ## 🌐 Web Interface
 
 The project includes a fully functional web interface:
@@ -64,12 +75,11 @@ Simply open **http://localhost:3000** in your browser to start using the web int
 
 ```
 hackybacky/
-├── data/                 # 76+ travel destination JSON files
-│   ├── France.json
-│   ├── China.json
-│   ├── Japan.json
-│   └── ... (76+ countries)
-├── data.zip             # Compressed data folder for easy distribution
+├── data/                 # Travel destination JSON files (YOU MUST CREATE THESE)
+│   ├── France.json      # Create your own destination files
+│   ├── China.json       # Follow the format in scripts/add-destination.js
+│   ├── Japan.json       # Or use the import script to add destinations
+│   └── ... (your countries)
 ├── sql/                 # Database schema and migrations
 │   └── schema.sql        # PostgreSQL schema with JSONB support
 ├── scripts/              # Database management scripts
@@ -137,10 +147,10 @@ npm run db:add
 
 **Option 3: Direct database insertion**
 ```sql
--- Connect to database
+# Connect to database
 psql "$DATABASE_URL"
 
--- Insert new destination
+# Insert new destination
 INSERT INTO destinations (key, name, region_type, emoji_flag, payload) 
 VALUES (
   'new-country',
@@ -156,7 +166,7 @@ VALUES (
 The PostgreSQL schema uses JSONB for flexible data storage:
 
 ```sql
--- Key table structure
+# Key table structure
 CREATE TABLE destinations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   key text UNIQUE NOT NULL,
@@ -167,7 +177,7 @@ CREATE TABLE destinations (
   created_at timestamptz DEFAULT now()
 );
 
--- Optimized indexes for fast search
+# Optimized indexes for fast search
 CREATE INDEX idx_destinations_payload_gin ON destinations USING gin (payload jsonb_path_ops);
 CREATE INDEX idx_destinations_name_trgm ON destinations USING gin (name gin_trgm_ops);
 ```
@@ -206,9 +216,8 @@ Returns complete travel information for a destination.
 
 **Key Generation Rules:**
 - Spaces become hyphens: `"Dominican Republic"` → `"dominican-republic"`
-- Special characters are removed: `"Trinidad & Tobago"` → `"trinidad--tobago"`
+- Special characters are removed: `"Trinidad & Tobago"` → `"trinidad-tobago"`
 - All keys are lowercase
-- Double hyphens are preserved (e.g., `"trinidad--tobago"`)
 
 **Examples:**
 ```bash
@@ -216,7 +225,7 @@ curl http://localhost:3000/api/destination/france
 curl http://localhost:3000/api/destination/japan
 curl http://localhost:3000/api/destination/united-kingdom
 curl http://localhost:3000/api/destination/dominican-republic
-curl http://localhost:3000/api/destination/trinidad--tobago
+curl http://localhost:3000/api/destination/trinidad-tobago
 curl http://localhost:3000/api/destination/saudi-arabia
 ```
 
@@ -402,7 +411,7 @@ console.log('Generated key:', key);
 - `"South Korea"` → `"south-korea"`
 - `"Hong Kong"` → `"hong-kong"`
 - `"Czech Republic"` → `"czech-republic"`
-- `"Trinidad & Tobago"` → `"trinidad--tobago"` (note: double hyphens)
+- `"Trinidad & Tobago"` → `"trinidad-tobago"` (note: single hyphens)
 
 #### Data Structure Issues
 Ensure JSON files follow the exact structure. Common issues:
